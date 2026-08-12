@@ -34,6 +34,10 @@ if not st.session_state["autenticado"]:
                 st.rerun()
             else: st.error("Credenciales incorrectas")
 else:
+    # ... dentro del bloque "else" de la autenticación
+    st.title("📦 App Ventas ¿Media O Que?")
+    st.markdown("Control financiero y de stock sincronizado en tiempo real con Google Sheets.")    
+    
     # --- APP PRINCIPAL ---
     menu = st.sidebar.selectbox("Menú", ["📊 Dashboard", "🛒 Registrar Venta", "📅 Ventas del Día", "➕ Registrar Producto"])
     
