@@ -1,84 +1,84 @@
-import gspread
-import pandas as pd
-from oauth2client.service_account import ServiceAccountCredentials
-import streamlit as st
 from datetime import datetime
+import os
+import pandas as pd
+import streamlit as st
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-# Configuración
-st.set_page_config(page_title="Sistema de Ventas", page_icon="📦", layout="wide")
+st.set_page_config(
+    page_title="Área Técnica - Inventario y Ventas", page_icon="📊", layout="wide"
+)
 
-# Conexión
+
+# Configuración de la conexión a Google Sheets
 @st.cache_resource
-def conectar_google_sheets():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
-    return gspread.authorize(creds).open("InventarioData")
+def init_connection():
+  scope = [
+      "https://spreadsheets.google.com/feeds",
+      "https://www.googleapis.com/auth/drive",
+  ]
+  # Lee las credenciales desde los secretos de Streamlit (secrets.toml)
+  creds_dict = dict(st.secrets["gcp_service_account"])
+  creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+  client = gspread.authorize(creds)
+  return client
 
-client = conectar_google_sheets()
 
-def cargar_inventario():
-    data = client.sheet1.get_all_records()
-    return pd.DataFrame(data)
+try:
+  client = init_connection()
+  # Asegúrate de configurar tu 'sheet_key' en el archivo .streamlit/secrets.toml
+  spreadsheet = client.open_by_key(st.secrets["sheet"]["sheet_key"])
+except Exception as e:
+  st.error(f"Error crítico al conectar con Google Sheets: {e}")
+  st.stop()
 
-# --- LOGIN ---
-if "autenticado" not in st.session_state: st.session_state.update({"autenticado": False, "nombre": ""})
+st.title("📊 Área Técnica - Servicios y Soluciones Tecnológicas")
+st.subheader("Sistema de Registro de Ventas e Inventario")
 
-if not st.session_state["autenticado"]:
-    st.title("🔐 Iniciar Sesión")
-    with st.form("login"):
-        user = st.text_input("Usuario")
-        pwd = st.text_input("Contraseña", type="password")
-        if st.form_submit_button("Ingresar"):
-            if user == "admin" and pwd == "12345":
-                st.session_state.update({"autenticado": True, "nombre": "Carlos", "rol": "Administrador"})
-                st.rerun()
-            else: st.error("Credenciales incorrectas")
-else:
-    # ... dentro del bloque "else" de la autenticación
-    st.title("📦 App Ventas ¿Media O Que?")
-    st.markdown("Control financiero y de stock sincronizado en tiempo real con Google Sheets.")    
-    
-    # --- APP PRINCIPAL ---
-    menu = st.sidebar.selectbox("Menú", ["📊 Dashboard", "🛒 Registrar Venta", "📅 Ventas del Día", "➕ Registrar Producto"])
-    
-    df_inventario = cargar_inventario()
+# Menú de navegación lateral
+menu = st.sidebar.selectbox("Navegación", ["Registrar Venta", "Ver Inventario"])
 
-    if menu == "📊 Dashboard":
-        st.subheader("Resumen General")
-        st.dataframe(df_inventario, use_container_width=True)
+if menu == "Registrar Venta":
+  st.header("🛒 Registrar Nueva Venta")
 
-    elif menu == "🛒 Registrar Venta":
-        st.subheader("🛒 Nueva Venta")
-        producto = st.selectbox("Producto", df_inventario["Producto"].values)
-        info = df_inventario[df_inventario["Producto"] == producto].iloc[0]
-        st.write(f"Precio: ${info['Precio Venta']:,.2f}")
-        
-        cant = st.number_input("Cantidad", min_value=1, step=1)
-        if st.button("Confirmar Venta"):
-            # 1. Registrar en hoja VentasDiarias
-            total = cant * info['Precio Venta']
-            client.worksheet("VentasDiarias").append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), producto, cant, total])
-            # 2. Descontar stock
-            df_inventario.loc[df_inventario["Producto"] == producto, "Cantidad"] -= cant
-            client.sheet1.clear()
-            client.sheet1.update([df_inventario.columns.values.tolist()] + df_inventario.values.tolist())
-            st.success("¡Venta realizada!")
+  with st.form("form_venta"):
+    producto = st.text_input("Nombre del Producto / Servicio")
+    cantidad = st.number_input("Cantidad", min_value=1, value=1, step=1)
+    precio_unitario = st.number_input(
+        "Precio Venta Unitario", min_value=0.0, value=0.0, step=500.0
+    )
 
-    elif menu == "📅 Ventas del Día":
-        st.subheader("📅 Ventas de Hoy")
-        df_ventas = pd.DataFrame(client.worksheet("VentasDiarias").get_all_records())
-        if not df_ventas.empty:
-            df_ventas['Fecha'] = pd.to_datetime(df_ventas['Fecha']).dt.strftime("%Y-%m-%d")
-            df_hoy = df_ventas[df_ventas['Fecha'] == datetime.now().strftime("%Y-%m-%d")]
-            st.write(f"Total hoy: ${df_hoy['Total'].sum():,.2f}")
-            st.dataframe(df_hoy)
-        else: st.info("No hay ventas hoy.")
+    submitted = st.form_submit_button("Guardar en Google Sheets")
 
-    elif menu == "➕ Registrar Producto":
-        with st.form("nuevo_prod"):
-            nombre = st.text_input("Producto")
-            cant = st.number_input("Cantidad", 0)
-            precio = st.number_input("Precio Venta", 0.0)
-            if st.form_submit_button("Guardar"):
-                client.sheet1.append_row([nombre, cant, 0, precio, 0, 0, 0])
-                st.success("Producto guardado")
+    if submitted:
+      if producto.strip() != "":
+        try:
+          # Selecciona la pestaña 'VentasDiarias' de tu Google Sheet
+          worksheet = spreadsheet.worksheet("VentasDiarias")
+
+          fecha_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+          total = cantidad * precio_unitario
+
+          # Añade la fila asegurando el orden de tus columnas
+          worksheet.append_row([fecha_hora, producto, cantidad, precio_unitario, total])
+
+          st.success("¡Venta registrada y sincronizada con éxito!")
+        except Exception as e:
+          st.error(f"No se pudo guardar la venta en la hoja de cálculo: {e}")
+      else:
+        st.warning("Por favor, ingresa el nombre del producto.")
+
+elif menu == "Ver Inventario":
+  st.header("📦 Inventario Actual")
+  try:
+    # Selecciona la pestaña de inventario (ajusta el nombre si es diferente)
+    worksheet_inv = spreadsheet.worksheet("Inventario")
+    rows = worksheet_inv.get_all_records()
+    df = pd.DataFrame(rows)
+
+    if not df.empty:
+      st.dataframe(df, use_container_width=True)
+    else:
+      st.info("La hoja de inventario se encuentra vacía.")
+  except Exception as e:
+    st.warning(f"No se pudo cargar la pestaña de inventario: {e}")
