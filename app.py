@@ -63,7 +63,33 @@ else:
         else:
             producto = st.selectbox("Producto", df_inventario["Producto"].values)
             info = df_inventario[df_inventario["Producto"] == producto].iloc[0]
-            st.write(f"Precio: ${info['Precio Venta']:,.2f}")
+            elif menu == "🛒 Registrar Venta":
+        st.subheader("🛒 Nueva Venta")
+        if df_inventario.empty:
+            st.warning("No hay productos disponibles en el inventario.")
+        else:
+            producto = st.selectbox("Producto", df_inventario["Producto"].values)
+            info = df_inventario[df_inventario["Producto"] == producto].iloc[0]
+            
+            # Conversión segura a número para evitar el ValueError
+            try:
+                precio_unitario = float(info['Precio Venta'])
+            except (ValueError, TypeError):
+                precio_unitario = 0.0
+                
+            st.write(f"Precio: ${precio_unitario:,.2f}")
+            
+            cant = st.number_input("Cantidad", min_value=1, step=1)
+            if st.button("Confirmar Venta"):
+                total = cant * precio_unitario
+                client.worksheet("VentasDiarias").append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), producto, int(cant), float(total)])
+                
+                # Descontar stock
+                df_inventario.loc[df_inventario["Producto"] == producto, "Cantidad"] -= cant
+                client.sheet1.clear()
+                client.sheet1.update([df_inventario.columns.values.tolist()] + df_inventario.values.tolist())
+                st.success("¡Venta realizada con éxito!")
+                st.rerun()
             
             cant = st.number_input("Cantidad", min_value=1, step=1)
             if st.button("Confirmar Venta"):
