@@ -93,14 +93,33 @@ else:
     elif menu == "📅 Ventas del Día":
         st.subheader("📅 Ventas de Hoy")
         try:
-            df_ventas = pd.DataFrame(client.worksheet("VentasDiarias").get_all_records())
-            if not df_ventas.empty:
-                df_ventas['Fecha'] = pd.to_datetime(df_ventas['Fecha']).dt.strftime("%Y-%m-%d")
-                df_hoy = df_ventas[df_ventas['Fecha'] == datetime.now().strftime("%Y-%m-%d")]
-                st.write(f"Total acumulado hoy: **${df_hoy['Total'].sum():,.2f}**")
-                st.dataframe(df_hoy, use_container_width=True)
-            else: st.info("No hay ventas hoy.")
-        except: st.info("Pestaña VentasDiarias no configurada.")
+            ws_ventas = client.worksheet("VentasDiarias")
+            data_ventas = ws_ventas.get_all_records()
+            
+            if not data_ventas:
+                st.info("La pestaña 'VentasDiarias' existe pero aún no tiene registros.")
+            else:
+                df_ventas = pd.DataFrame(data_ventas)
+                
+                # Verificamos que las columnas necesarias existan
+                cols_requeridas = ['Fecha', 'Producto', 'Cantidad', 'Total']
+                if not all(col in df_ventas.columns for col in cols_requeridas):
+                    st.error(f"Error en las columnas de 'VentasDiarias'. Deben ser: {cols_requeridas}. Actualmente detecta: {list(df_ventas.columns)}")
+                else:
+                    df_ventas['Fecha'] = pd.to_datetime(df_ventas['Fecha'], errors='coerce').dt.strftime("%Y-%m-%d")
+                    hoy = datetime.now().strftime("%Y-%m-%d")
+                    df_hoy = df_ventas[df_ventas['Fecha'] == hoy]
+                    
+                    if not df_hoy.empty:
+                        total_hoy = df_hoy['Total'].sum()
+                        st.write(f"Total acumulado hoy: **${total_hoy:,.2f}**")
+                        st.dataframe(df_hoy, use_container_width=True)
+                    else:
+                        st.info(f"No hay ventas registradas para el día de hoy ({hoy}).")
+        except gspread.exceptions.WorksheetNotFound:
+            st.error("⚠️ La pestaña 'VentasDiarias' no existe en tu Google Sheet. Por favor, créala.")
+        except Exception as e:
+            st.error(f"Ocurrió un error al cargar las ventas: {e}")
 
     elif menu == "➕ Registrar Producto":
         with st.form("nuevo_prod"):
