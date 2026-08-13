@@ -106,7 +106,11 @@ else:
                 if not all(col in df_ventas.columns for col in cols_requeridas):
                     st.error(f"Error en las columnas de 'VentasDiarias'. Deben ser: {cols_requeridas}. Actualmente detecta: {list(df_ventas.columns)}")
                 else:
+                    # 🛠️ CORRECCIÓN DEL ERROR DE TIPOS: Forzar formato numérico y de fecha
+                    df_ventas['Total'] = pd.to_numeric(df_ventas['Total'], errors='coerce').fillna(0.0)
+                    df_ventas['Cantidad'] = pd.to_numeric(df_ventas['Cantidad'], errors='coerce').fillna(0).astype(int)
                     df_ventas['Fecha'] = pd.to_datetime(df_ventas['Fecha'], errors='coerce').dt.strftime("%Y-%m-%d")
+                    
                     hoy = datetime.now().strftime("%Y-%m-%d")
                     df_hoy = df_ventas[df_ventas['Fecha'] == hoy]
                     
