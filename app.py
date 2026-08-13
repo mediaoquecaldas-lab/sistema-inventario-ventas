@@ -22,8 +22,15 @@ def cargar_inventario():
         data = client.sheet1.get_all_records()
         df = pd.DataFrame(data)
         columnas_necesarias = ["Producto", "Cantidad", "Costo Unitario", "Precio Venta", "Venta Total", "Costo Total", "Ganancia"]
+        
         if df.empty or not all(col in df.columns for col in columnas_necesarias):
             return pd.DataFrame(columns=columnas_necesarias)
+        
+        # 🛠️ CORRECCIÓN: Asegurar tipos de datos numéricos para evitar el TypeError
+        df["Cantidad"] = pd.to_numeric(df["Cantidad"], errors="coerce").fillna(0).astype(int)
+        df["Precio Venta"] = pd.to_numeric(df["Precio Venta"], errors="coerce").fillna(0.0)
+        df["Costo Unitario"] = pd.to_numeric(df["Costo Unitario"], errors="coerce").fillna(0.0)
+        
         return df
     except Exception:
         return pd.DataFrame(columns=["Producto", "Cantidad", "Costo Unitario", "Precio Venta", "Venta Total", "Costo Total", "Ganancia"])
@@ -67,19 +74,17 @@ else:
             producto = st.selectbox("Producto", df_inventario["Producto"].values)
             info = df_inventario[df_inventario["Producto"] == producto].iloc[0]
             
-            # Conversión segura para evitar el ValueError
-            try:
-                precio_unitario = float(info['Precio Venta'])
-            except:
-                precio_unitario = 0.0
-                
+            precio_unitario = float(info['Precio Venta'])
             st.write(f"Precio Unitario: ${precio_unitario:,.2f}")
             cant = st.number_input("Cantidad", min_value=1, step=1)
             
             if st.button("Confirmar Venta"):
                 total = cant * precio_unitario
                 client.worksheet("VentasDiarias").append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), producto, int(cant), float(total)])
-                df_inventario.loc[df_inventario["Producto"] == producto, "Cantidad"] -= cant
+                
+                # Actualizar stock
+                df_inventario.loc[df_inventario["Producto"] == producto, "Cantidad"] -= int(cant)
+                
                 client.sheet1.clear()
                 client.sheet1.update([df_inventario.columns.values.tolist()] + df_inventario.values.tolist())
                 st.success("¡Venta realizada!")
