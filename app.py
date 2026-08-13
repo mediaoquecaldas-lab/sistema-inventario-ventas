@@ -24,6 +24,8 @@ def cargar_inventario():
         columnas_necesarias = ["Producto", "Cantidad", "Costo Unitario", "Precio Venta", "Venta Total", "Costo Total", "Ganancia"]
         if df.empty or not all(col in df.columns for col in columnas_necesarias):
             return pd.DataFrame(columns=columnas_necesarias)
+        # Forzar que Cantidad sea numérica para evitar errores de tipo
+        df["Cantidad"] = pd.to_numeric(df["Cantidad"], errors="fill").fillna(0).astype(int)
         return df
     except Exception:
         return pd.DataFrame(columns=["Producto", "Cantidad", "Costo Unitario", "Precio Venta", "Venta Total", "Costo Total", "Ganancia"])
@@ -67,7 +69,7 @@ else:
             producto = st.selectbox("Producto", df_inventario["Producto"].values)
             info = df_inventario[df_inventario["Producto"] == producto].iloc[0]
             
-            # Conversión segura para evitar el ValueError
+            # Conversión segura para el precio
             try:
                 precio_unitario = float(info['Precio Venta'])
             except:
@@ -79,7 +81,9 @@ else:
             if st.button("Confirmar Venta"):
                 total = cant * precio_unitario
                 client.worksheet("VentasDiarias").append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), producto, int(cant), float(total)])
-                df_inventario.loc[df_inventario["Producto"] == producto, "Cantidad"] -= cant
+                
+                # Actualizar stock de forma segura
+                df_inventario.loc[df_inventario["Producto"] == producto, "Cantidad"] -= int(cant)
                 client.sheet1.clear()
                 client.sheet1.update([df_inventario.columns.values.tolist()] + df_inventario.values.tolist())
                 st.success("¡Venta realizada!")
@@ -100,7 +104,7 @@ else:
     elif menu == "➕ Registrar Producto":
         with st.form("nuevo_prod"):
             nombre = st.text_input("Nombre del Producto")
-            cant = st.number_input("Cantidad", min_value=0)
+            cant = st.number_input("Cantidad", min_value=0, step=1)
             costo = st.number_input("Costo Unitario", min_value=0.0)
             precio = st.number_input("Precio Venta", min_value=0.0)
             if st.form_submit_button("Guardar"):
