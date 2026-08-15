@@ -5,6 +5,7 @@ import streamlit as st
 from datetime import datetime
 
 # --- CONFIGURACIÓN ---
+# Puedes cambiar page_icon por un emoji (ej. "📦") o por la ruta de una imagen (ej. "assets/logo.png")
 st.set_page_config(page_title="App Ventas ¿Media O Que?", page_icon="📦", layout="wide")
 
 # --- CONEXIÓN GOOGLE SHEETS ---
@@ -70,7 +71,7 @@ else:
         if df_inventario.empty:
             st.warning("No hay productos disponibles.")
         else:
-            # 🪑 Selector de Mesa
+            # 🪑 Selector desplegable de mesas
             mesa_seleccionada = st.selectbox("Seleccionar Mesa", ["Mesa 1", "Mesa 2", "Mesa 3", "Mesa 4", "Mesa 5", "Barra", "Llevar"])
             
             producto = st.selectbox("Producto", df_inventario["Producto"].values)
@@ -82,7 +83,8 @@ else:
             
             if st.button("Confirmar Venta"):
                 total = cant * precio_unitario
-                # Se agrega la mesa al registro en Google Sheets
+                
+                # Se registra la venta incluyendo la mesa seleccionada
                 client.worksheet("VentasDiarias").append_row([
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
                     mesa_seleccionada, 
@@ -96,7 +98,7 @@ else:
                 
                 client.sheet1.clear()
                 client.sheet1.update([df_inventario.columns.values.tolist()] + df_inventario.values.tolist())
-                st.success(f"¡Venta registrada para la {mesa_seleccionada}!")
+                st.success(f"¡Venta registrada exitosamente para la {mesa_seleccionada}!")
                 st.rerun()
 
     elif menu == "📅 Ventas del Día":
@@ -110,7 +112,7 @@ else:
             else:
                 df_ventas = pd.DataFrame(data_ventas)
                 
-                # Verificamos que las columnas necesarias existan (incluyendo Mesa)
+                # Verificamos que las columnas necesarias existan (incluyendo 'Mesa')
                 cols_requeridas = ['Fecha', 'Mesa', 'Producto', 'Cantidad', 'Total']
                 if not all(col in df_ventas.columns for col in cols_requeridas):
                     st.error(f"Error en las columnas de 'VentasDiarias'. Deben ser: {cols_requeridas}. Actualmente detecta: {list(df_ventas.columns)}")
