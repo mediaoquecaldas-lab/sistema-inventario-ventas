@@ -26,7 +26,6 @@ def cargar_inventario():
         if df.empty or not all(col in df.columns for col in columnas_necesarias):
             return pd.DataFrame(columns=columnas_necesarias)
         
-        # 🛠️ CORRECCIÓN: Asegurar tipos de datos numéricos para evitar el TypeError
         df["Cantidad"] = pd.to_numeric(df["Cantidad"], errors="coerce").fillna(0).astype(int)
         df["Precio Venta"] = pd.to_numeric(df["Precio Venta"], errors="coerce").fillna(0.0)
         df["Costo Unitario"] = pd.to_numeric(df["Costo Unitario"], errors="coerce").fillna(0.0)
@@ -71,6 +70,9 @@ else:
         if df_inventario.empty:
             st.warning("No hay productos disponibles.")
         else:
+            # 🪑 Selector de Mesa
+            mesa_seleccionada = st.selectbox("Seleccionar Mesa", ["Mesa 1", "Mesa 2", "Mesa 3", "Mesa 4", "Mesa 5", "Barra", "Llevar"])
+            
             producto = st.selectbox("Producto", df_inventario["Producto"].values)
             info = df_inventario[df_inventario["Producto"] == producto].iloc[0]
             
@@ -80,14 +82,21 @@ else:
             
             if st.button("Confirmar Venta"):
                 total = cant * precio_unitario
-                client.worksheet("VentasDiarias").append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), producto, int(cant), float(total)])
+                # Se agrega la mesa al registro en Google Sheets
+                client.worksheet("VentasDiarias").append_row([
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                    mesa_seleccionada, 
+                    producto, 
+                    int(cant), 
+                    float(total)
+                ])
                 
                 # Actualizar stock
                 df_inventario.loc[df_inventario["Producto"] == producto, "Cantidad"] -= int(cant)
                 
                 client.sheet1.clear()
                 client.sheet1.update([df_inventario.columns.values.tolist()] + df_inventario.values.tolist())
-                st.success("¡Venta realizada!")
+                st.success(f"¡Venta registrada para la {mesa_seleccionada}!")
                 st.rerun()
 
     elif menu == "📅 Ventas del Día":
@@ -101,12 +110,11 @@ else:
             else:
                 df_ventas = pd.DataFrame(data_ventas)
                 
-                # Verificamos que las columnas necesarias existan
-                cols_requeridas = ['Fecha', 'Producto', 'Cantidad', 'Total']
+                # Verificamos que las columnas necesarias existan (incluyendo Mesa)
+                cols_requeridas = ['Fecha', 'Mesa', 'Producto', 'Cantidad', 'Total']
                 if not all(col in df_ventas.columns for col in cols_requeridas):
                     st.error(f"Error en las columnas de 'VentasDiarias'. Deben ser: {cols_requeridas}. Actualmente detecta: {list(df_ventas.columns)}")
                 else:
-                    # 🛠️ CORRECCIÓN DEL ERROR DE TIPOS: Forzar formato numérico y de fecha
                     df_ventas['Total'] = pd.to_numeric(df_ventas['Total'], errors='coerce').fillna(0.0)
                     df_ventas['Cantidad'] = pd.to_numeric(df_ventas['Cantidad'], errors='coerce').fillna(0).astype(int)
                     df_ventas['Fecha'] = pd.to_datetime(df_ventas['Fecha'], errors='coerce').dt.strftime("%Y-%m-%d")
