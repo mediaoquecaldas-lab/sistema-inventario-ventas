@@ -5,7 +5,6 @@ import streamlit as st
 from datetime import datetime
 
 # --- CONFIGURACIÓN ---
-# Puedes cambiar page_icon por un emoji (ej. "📦") o por la ruta de una imagen (ej. "assets/logo.png")
 st.set_page_config(page_title="App Ventas ¿Media O Que?", page_icon="📦", layout="wide")
 
 # --- CONEXIÓN GOOGLE SHEETS ---
@@ -71,26 +70,27 @@ else:
         if df_inventario.empty:
             st.warning("No hay productos disponibles.")
         else:
-            # 🪑 Selector desplegable de mesas
             mesa_seleccionada = st.selectbox("Seleccionar Mesa", ["Mesa 1", "Mesa 2", "Mesa 3", "Mesa 4", "Mesa 5", "Barra", "Llevar"])
             
             producto = st.selectbox("Producto", df_inventario["Producto"].values)
             info = df_inventario[df_inventario["Producto"] == producto].iloc[0]
             
+            # 🛠️ Sin decimales en la visualización del precio unitario (:,.0f)
             precio_unitario = float(info['Precio Venta'])
-            st.write(f"Precio Unitario: ${precio_unitario:,.2f}")
+            st.write(f"Precio Unitario: **${precio_unitario:,.0f}**")
+            
             cant = st.number_input("Cantidad", min_value=1, step=1)
             
             if st.button("Confirmar Venta"):
-                total = cant * precio_unitario
+                # 🛠️ Guardamos el total redondeado como entero (sin decimales)
+                total = int(cant * precio_unitario)
                 
-                # Se registra la venta incluyendo la mesa seleccionada
                 client.worksheet("VentasDiarias").append_row([
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
                     mesa_seleccionada, 
                     producto, 
                     int(cant), 
-                    float(total)
+                    total
                 ])
                 
                 # Actualizar stock
@@ -112,12 +112,12 @@ else:
             else:
                 df_ventas = pd.DataFrame(data_ventas)
                 
-                # Verificamos que las columnas necesarias existan (incluyendo 'Mesa')
                 cols_requeridas = ['Fecha', 'Mesa', 'Producto', 'Cantidad', 'Total']
                 if not all(col in df_ventas.columns for col in cols_requeridas):
                     st.error(f"Error en las columnas de 'VentasDiarias'. Deben ser: {cols_requeridas}. Actualmente detecta: {list(df_ventas.columns)}")
                 else:
-                    df_ventas['Total'] = pd.to_numeric(df_ventas['Total'], errors='coerce').fillna(0.0)
+                    # 🛠️ Forzar Total y Cantidad a numéricos sin decimales
+                    df_ventas['Total'] = pd.to_numeric(df_ventas['Total'], errors='coerce').fillna(0).astype(int)
                     df_ventas['Cantidad'] = pd.to_numeric(df_ventas['Cantidad'], errors='coerce').fillna(0).astype(int)
                     df_ventas['Fecha'] = pd.to_datetime(df_ventas['Fecha'], errors='coerce').dt.strftime("%Y-%m-%d")
                     
@@ -125,8 +125,9 @@ else:
                     df_hoy = df_ventas[df_ventas['Fecha'] == hoy]
                     
                     if not df_hoy.empty:
-                        total_hoy = df_hoy['Total'].sum()
-                        st.write(f"Total acumulado hoy: **${total_hoy:,.2f}**")
+                        total_hoy = int(df_hoy['Total'].sum())
+                        # 🛠️ Total acumulado sin decimales (:,.0f)
+                        st.write(f"Total acumulado hoy: **${total_hoy:,.0f}**")
                         st.dataframe(df_hoy, use_container_width=True)
                     else:
                         st.info(f"No hay ventas registradas para el día de hoy ({hoy}).")
